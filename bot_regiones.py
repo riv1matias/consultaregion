@@ -13,7 +13,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from telegram import Update
 
 # Configuración del bot de Telegram (reemplaza con tu Bot Token)
-TOKEN = "TU_BOT_TOKEN"  # Reemplaza con el token que obtuviste de BotFather
+TOKEN = "7402637120:AAHbqpPxN70Crvn49IVYW8JU70fgjdZboeI"  # Reemplaza con el token que obtuviste de BotFather
 
 # Diccionario de correcciones para nombres de calles
 CORRECCIONES_CALLES = {
