@@ -11,9 +11,24 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram import Update
+import os
+import logging
 
-# Configuración del bot de Telegram (reemplaza con tu Bot Token)
-TOKEN = "7402637120:AAHbqpPxN70Crvn49IVYW8JU70fgjdZboeI"  # Reemplaza con el token que obtuviste de BotFather
+# Configurar logging para depuración
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# Configuración del bot de Telegram
+TOKEN = os.getenv("TOKEN")
+GITHUB_URL = os.getenv("GITHUB_URL")
+
+# Verificar token al inicio
+if not TOKEN:
+    print("❌ Error: No se encontró el Bot Token. Configura la variable de entorno TOKEN.")
+    exit(1)
 
 # Diccionario de correcciones para nombres de calles
 CORRECCIONES_CALLES = {
@@ -37,7 +52,7 @@ CORRECCIONES_CALLES = {
     "ACUÑA DE FIGUEROA, FRANCISCO": "Francisco Acuña de Figueroa"
 }
 
-# Definir zonas (corregido: Palermo en Capital Sur, Paternal solo en Capital Norte)
+# Definir zonas (Palermo en Capital Sur, Paternal solo en Capital Norte)
 ZONAS = {
     'Capital Sur': ['Boedo', 'San Telmo', 'Almagro', 'Recoleta', 'Palermo'],
     'Capital Norte': ['Devoto', 'Paternal', 'Colegiales', 'Saavedra']
@@ -112,6 +127,7 @@ def normalizar_direccion(direccion, altura, errores, direccion_original, reinten
         direccion_codificada = urllib.parse.quote(direccion_completa) if url == url_normalizar else ""
         url_completa = f"{url}?{'&'.join(f'{k}={urllib.parse.quote(str(v))}' for k, v in params.items() if v)}"
         print(f"📍 Consultando (reintento {reintento}): {direccion_completa}")
+        logger.info(f"Consultando (reintento {reintento}): {direccion_completa}")
 
         try:
             response = session.get(url, params=params, timeout=15)
@@ -146,6 +162,7 @@ def normalizar_direccion(direccion, altura, errores, direccion_original, reinten
                 "original": direccion_original,
                 "reintento": reintento
             })
+            logger.error(f"Error al normalizar dirección: {error_msg}")
             time.sleep(3)
 
     return direccion_completa, None, None, ""
@@ -157,15 +174,18 @@ def reordenar_calle(direccion):
     return direccion
 
 # Cargar polígonos desde poligonos_operaciones.xlsx (local o GitHub)
-def cargar_poligonos_excel(archivo_excel=None, url_github="https://github.com/riv1matias/consultaregion/blob/main/poligonos_operaciones.xlsx"):
+def cargar_poligonos_excel(archivo_excel=None, url_github=None):
+    logger.info("Iniciando carga de poligonos_operaciones.xlsx...")
     try:
         if url_github:
+            logger.info(f"Descargando archivo desde GitHub: {url_github}")
             response = requests.get(url_github)
             response.raise_for_status()
             with open('poligonos_operaciones.xlsx', 'wb') as f:
                 f.write(response.content)
             archivo_excel = 'poligonos_operaciones.xlsx'
-        df = pd.read_excel(archivo_excel)
+        logger.info(f"Leyendo archivo Excel: {archivo_excel}")
+        df = pd.read_excel(archivo_excel, engine='openpyxl')  # Especificar el motor
         poligonos = []
         for _, row in df.iterrows():
             coords = ast.literal_eval(row['Coordenadas'])
@@ -173,22 +193,25 @@ def cargar_poligonos_excel(archivo_excel=None, url_github="https://github.com/ri
                 "nombre_operacion": row['Nombre_Operacion'],
                 "coordenadas": coords
             })
+        logger.info("Polígonos cargados exitosamente.")
         return poligonos
-    except FileNotFoundError:
-        print("❌ Error: No se encontró 'poligonos_operaciones.xlsx'. Verifica la ruta o URL.")
-        raise
+    except FileNotFoundError as e:
+        logger.error("❌ Error: No se encontró 'poligonos_operaciones.xlsx'. Verifica la ruta o URL.")
+        raise e
     except Exception as e:
-        print(f"❌ Error al procesar 'poligonos_operaciones.xlsx': {str(e)}")
-        raise
+        logger.error(f"❌ Error al procesar 'poligonos_operaciones.xlsx': {str(e)}")
+        raise e
 
 # Crear GeoDataFrame con polígonos
 def crear_gdf_poligonos(poligonos):
+    logger.info("Creando GeoDataFrame con polígonos...")
     geometries = [Polygon(coords) for coords in [p["coordenadas"] for p in poligonos]]
     gdf = gpd.GeoDataFrame(
         {"nombre_operacion": [p["nombre_operacion"] for p in poligonos]},
         geometry=geometries,
         crs="EPSG:4326"
     )
+    logger.info("GeoDataFrame creado exitosamente.")
     return gdf
 
 # Función para verificar si un punto está dentro de un polígono
@@ -203,23 +226,27 @@ def encontrar_operacion(x, y, gdf_poligonos):
 
 # Cargar polígonos al iniciar el bot
 try:
-    # Opción 1: Cargar desde archivo local
-    poligonos = cargar_poligonos_excel(archivo_excel='poligonos_operaciones.xlsx')
-    # Opción 2: Cargar desde GitHub (descomenta y reemplaza con tu URL)
-    # poligonos = cargar_poligonos_excel(url_github="https://raw.githubusercontent.com/TU_USUARIO/TU_REPOSITORIO/main/poligonos_operaciones.xlsx")
+    logger.info("Cargando polígonos al iniciar el bot...")
+    if GITHUB_URL:
+        poligonos = cargar_poligonos_excel(url_github=GITHUB_URL)
+    else:
+        poligonos = cargar_poligonos_excel(archivo_excel='poligonos_operaciones.xlsx')
     gdf_poligonos = crear_gdf_poligonos(poligonos)
 except Exception as e:
+    logger.error(f"❌ No se pudo cargar 'poligonos_operaciones.xlsx': {str(e)}")
     print(f"❌ No se pudo cargar 'poligonos_operaciones.xlsx': {str(e)}")
     exit(1)
 
 # Comandos del bot
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Recibido comando /start")
     await update.message.reply_text(
         "¡Hola! Soy el bot Regiones. Envíame una dirección en CABA (por ejemplo, 'Av. Corrientes 1234') y te diré si pertenece a Capital Norte o Capital Sur."
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     incoming_msg = update.message.text.strip()
+    logger.info(f"Mensaje recibido: {incoming_msg}")
     errores = []
 
     # Procesar la dirección
@@ -236,19 +263,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         respuesta = f"No se pudo normalizar la dirección '{incoming_msg}'. Por favor, intenta con un formato válido (ejemplo: 'Av. Corrientes 1234')."
 
     # Enviar respuesta
+    logger.info(f"Enviando respuesta: {respuesta}")
     await update.message.reply_text(respuesta)
 
 def main():
-    # Configurar el bot
-    application = Application.builder().token(TOKEN).build()
-
-    # Agregar manejadores
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Iniciar el bot
+    logger.info("Iniciando el bot...")
     print("🚀 Bot iniciado...")
-    application.run_polling()
+    try:
+        # Configurar el bot
+        application = Application.builder().token(TOKEN).build()
+
+        # Agregar manejadores
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+        # Iniciar polling
+        logger.info("Iniciando polling...")
+        application.run_polling()
+    except Exception as e:
+        logger.error(f"Error al iniciar el bot: {str(e)}")
+        print(f"❌ Error al iniciar el bot: {str(e)}")
+        exit(1)
 
 if __name__ == '__main__':
     main()
