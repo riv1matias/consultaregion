@@ -267,7 +267,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if x is not None and y is not None:
         operacion = encontrar_operacion(x, y, gdf_poligonos)
         zona = clasificar_zona(operacion)
-        respuesta = f"La dirección {direccion_normalizada} pertenece a {zona} (Operación: {operacion})."
+        respuesta = (
+            f"La dirección '{direccion_normalizada_display}' " # Asumiendo que usas 'direccion_normalizada_display'
+            f"pertenece al polígono *{operacion}* "
+            f"dentro de *{zona}*."
+                    )
     else:
         respuesta = f"No se pudo normalizar la dirección '{incoming_msg}'. Por favor, intenta con un formato válido (ejemplo: 'Av. Corrientes 1234')."
 
