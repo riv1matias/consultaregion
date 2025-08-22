@@ -7,19 +7,36 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
     <div class="container">
-        <h1>Buscador de Zonas Operativas</h1>
-        <p>Ingresa una dirección de CABA (Calle y Altura) para encontrar su clasificación.</p>
-        <div class="search-box">
-            <input type="text" id="addressInput" placeholder="Ej: Av. Rivadavia 4550" autocomplete="off">
-            <button id="searchButton">Buscar</button>
+        <div class="search-card">
+            <h1>Buscador por Dirección</h1>
+            <p>Ingresa una dirección de CABA para encontrar su clasificación.</p>
+            <div class="search-box">
+                <input type="text" id="addressInput" placeholder="Ej: Av. Rivadavia 4550" autocomplete="off">
+                <button id="addressSearchButton">Buscar</button>
+            </div>
+            <div id="addressResults" class="results-container">
+                 <div class="info">Ingresa una dirección para comenzar.</div>
+            </div>
         </div>
-        <div id="results" class="results-container">
-             <div class="info">Ingresa una dirección para comenzar.</div>
+
+        <div class="search-card">
+            <h1>Buscador por Zona Operativa</h1>
+            <p>Ingresa el nombre de una Zona Operativa para ver su detalle.</p>
+            <div class="search-box">
+                <input type="text" id="zoneInput" placeholder="Ej: AGU131A" autocomplete="off">
+                <button id="zoneSearchButton">Buscar</button>
+            </div>
+            <div id="zoneResults" class="results-container">
+                 <div class="info">Ingresa una Zona Operativa para buscar.</div>
+            </div>
         </div>
     </div>
+
     <script src="zonasOperativas.js"></script>
     <script src="subregiones.js"></script>
     <script src="script.js"></script>
+
 </body>
 </html>
